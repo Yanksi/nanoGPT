@@ -15,6 +15,16 @@ import torch
 import torch.nn as nn
 from torch.nn import functional as F
 
+from SparseLinear.linear import MyLinear, MySparseLinear, MyConnectedSparseLinear
+
+def get_linear(config, n_input, n_output, bias=True):
+    if config.linear_type == "dense":
+        return MyLinear(n_input, n_output, need_bias=bias, init_mode=config.init_mode)
+    if config.linear_type == "sparse":
+        return MySparseLinear(n_input, n_output, need_bias=bias, init_mode=config.init_mode)
+    if config.linear_type == "connected_sparse":
+        return MyConnectedSparseLinear(n_input, n_output, need_bias=bias, init_mode=config.init_mode, n_groups=config.n_groups, interleave_out=config.interleave)
+
 class LayerNorm(nn.Module):
     """ LayerNorm but with an optional bias. PyTorch doesn't support simply bias=False """
 
@@ -32,9 +42,11 @@ class CausalSelfAttention(nn.Module):
         super().__init__()
         assert config.n_embd % config.n_head == 0
         # key, query, value projections for all heads, but in a batch
-        self.c_attn = nn.Linear(config.n_embd, 3 * config.n_embd, bias=config.bias)
+        self.c_attn = get_linear(config, config.n_embd, 3 * config.n_embd, bias=config.bias)
+        # self.c_attn = nn.Linear(config.n_embd, 3 * config.n_embd, bias=config.bias)
         # output projection
-        self.c_proj = nn.Linear(config.n_embd, config.n_embd, bias=config.bias)
+        self.c_proj = get_linear(config, config.n_embd, config.n_embd, bias=config.bias)
+        # self.c_proj = nn.Linear(config.n_embd, config.n_embd, bias=config.bias)
         # regularization
         self.attn_dropout = nn.Dropout(config.dropout)
         self.resid_dropout = nn.Dropout(config.dropout)
@@ -79,9 +91,11 @@ class MLP(nn.Module):
 
     def __init__(self, config):
         super().__init__()
-        self.c_fc    = nn.Linear(config.n_embd, 4 * config.n_embd, bias=config.bias)
+        self.c_fc    = get_linear(config, config.n_embd, 4 * config.n_embd, bias=config.bias)
+        # self.c_fc    = nn.Linear(config.n_embd, 4 * config.n_embd, bias=config.bias)
         self.gelu    = nn.GELU()
-        self.c_proj  = nn.Linear(4 * config.n_embd, config.n_embd, bias=config.bias)
+        self.c_proj  = get_linear(config, 4 * config.n_embd, config.n_embd, bias=config.bias)
+        # self.c_proj  = nn.Linear(4 * config.n_embd, config.n_embd, bias=config.bias)
         self.dropout = nn.Dropout(config.dropout)
 
     def forward(self, x):
@@ -105,6 +119,7 @@ class Block(nn.Module):
         x = x + self.mlp(self.ln_2(x))
         return x
 
+
 @dataclass
 class GPTConfig:
     block_size: int = 1024
@@ -115,6 +130,10 @@ class GPTConfig:
     dropout: float = 0.0
     bias: bool = True # True: bias in Linears and LayerNorms, like GPT-2. False: a bit better and faster
     linear_type: str = 'dense' # or 'sparse' or 'connected_sparse'
+    n_groups: int = 4 # number of groups for connected sparse linear
+    interleave: bool = True # interleave sparse linear layers for better performance
+    init_mode: str = 'fan_out' # or 'fan_in' or 'fan_out
+
 
 class GPT(nn.Module):
 

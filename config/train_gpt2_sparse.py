@@ -4,7 +4,7 @@
 
 wandb_log = True
 wandb_project = 'GPT2'
-experiment_name='dense_mine_better_optimizer_fanin'
+experiment_name='sparse_fanout'
 
 # these make the total batch size be ~0.5M
 # 12 batch size * 1024 block size * 5 gradaccum * 8 GPUs = 491,520
@@ -28,5 +28,5 @@ beta2 = 0.999
 learning_rate = 5e-5
 
 # Linear layer
-linear_type = "dense"
-init_mode = "fan_in"
+linear_type = "sparse"
+init_mode = "fan_out"
