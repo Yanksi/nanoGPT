@@ -1,0 +1,3 @@
+[submodule "SparseLinear"]
+	path = SparseLinear
+	url = git@github.com:Yanksi/SparseLinear.git

@@ -11,3 +11,7 @@ input.txt
 env/
 venv/
 data/
+*.txt
+*.out
+wandb/
+.cache
