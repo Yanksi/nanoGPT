@@ -15,15 +15,54 @@ import torch
 import torch.nn as nn
 from torch.nn import functional as F
 
+from sparselinear import MyLinear, MySparseLinear, MyConnectedSparseLinear, MyBetterConnectedSparseLinear
+
 from SparseLinear.linear import MyLinear, MySparseLinear, MyConnectedSparseLinear
 
-def get_linear(config, n_input, n_output, bias=True):
+def get_linear(config, n_input, n_output, transformer=False):
+    if transformer:
+        bias = config.transformer_bias
+        init = 'transformer'
+    else:
+        bias = config.bias
+        init = config.init_mode
+    
     if config.linear_type == "dense":
-        return MyLinear(n_input, n_output, need_bias=bias, init_mode=config.init_mode)
+        return MyLinear(
+            n_input, n_output,
+            need_bias=bias,
+            init_mode=init
+            )
+        
     if config.linear_type == "sparse":
-        return MySparseLinear(n_input, n_output, need_bias=bias, init_mode=config.init_mode)
+        return MySparseLinear(
+            n_input, n_output,
+            need_bias=bias,
+            init_mode=init,
+            guarantee_rank=config.guarantee_rank
+            )
+        
     if config.linear_type == "connected_sparse":
-        return MyConnectedSparseLinear(n_input, n_output, need_bias=bias, init_mode=config.init_mode, n_groups=config.n_groups, interleave_out=config.interleave)
+        return MyConnectedSparseLinear(
+            n_input, n_output,
+            need_bias=bias,
+            init_mode=init,
+            n_groups=config.n_groups,
+            group_size=config.group_size,
+            interleave_out=config.interleave,
+            guarantee_rank=config.guarantee_rank
+            )
+    
+    if config.linear_type == "better_connected_sparse":
+        return MyBetterConnectedSparseLinear(
+            n_input, n_output,
+            need_bias=bias,
+            init_mode=init,
+            n_groups=config.n_groups,
+            group_size=config.group_size,
+            interleave_out=config.interleave,
+            guarantee_rank=config.guarantee_rank
+            )
 
 class LayerNorm(nn.Module):
     """ LayerNorm but with an optional bias. PyTorch doesn't support simply bias=False """
@@ -42,10 +81,10 @@ class CausalSelfAttention(nn.Module):
         super().__init__()
         assert config.n_embd % config.n_head == 0
         # key, query, value projections for all heads, but in a batch
-        self.c_attn = get_linear(config, config.n_embd, 3 * config.n_embd, bias=config.bias)
+        self.c_attn = get_linear(config, config.n_embd, 3 * config.n_embd, transformer=True)
         # self.c_attn = nn.Linear(config.n_embd, 3 * config.n_embd, bias=config.bias)
         # output projection
-        self.c_proj = get_linear(config, config.n_embd, config.n_embd, bias=config.bias)
+        self.c_proj = get_linear(config, config.n_embd, config.n_embd)
         # self.c_proj = nn.Linear(config.n_embd, config.n_embd, bias=config.bias)
         # regularization
         self.attn_dropout = nn.Dropout(config.dropout)
@@ -130,9 +169,13 @@ class GPTConfig:
     dropout: float = 0.0
     bias: bool = True # True: bias in Linears and LayerNorms, like GPT-2. False: a bit better and faster
     linear_type: str = 'dense' # or 'sparse' or 'connected_sparse'
-    n_groups: int = 4 # number of groups for connected sparse linear
+    n_groups: int = 1 # number of groups for connected sparse linear
+    group_size: int = 16 # size of each group for connected sparse linear
+    guarantee_rank: bool = True # guarantee sparse linear blocks are full rank
     interleave: bool = True # interleave sparse linear layers for better performance
-    init_mode: str = 'fan_out' # or 'fan_in' or 'fan_out
+    init_mode: str = 'fan_out' # or 'fan_in' or 'fan_out' or 'transformer'
+    transformer_bias: bool = False
+    
 
 
 class GPT(nn.Module):

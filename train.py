@@ -52,11 +52,14 @@ n_layer = 12
 n_head = 12
 n_embd = 768
 dropout = 0.0 # for pretraining 0 is good, for finetuning try 0.1+
-bias = False # do we use bias inside LayerNorm and Linear layers?
+bias = True # do we use bias inside LayerNorm and Linear layers?
 linear_type = 'dense' # 'dense' or 'sparse' or 'connected_sparse'
-n_groups = 4 # number of groups for connected sparse linear
+n_groups = 1 # number of groups for connected sparse linear
+group_size = 16 # size of each group for connected sparse linear
+guarantee_rank = True # guarantee rank for connected sparse linear
 interleave = True # interleave sparse linear layers for better performance
 init_mode = 'fan_out' # 'fan_in' or 'fan_out' for linear layers
+transformer_bias = False # use bias in the transformer layers
 
 # adamw optimizer
 learning_rate = 6e-4 # max learning rate
@@ -157,7 +160,8 @@ if os.path.exists(meta_path):
 # model init
 model_args = dict(n_layer=n_layer, n_head=n_head, n_embd=n_embd, block_size=block_size,
                   bias=bias, vocab_size=None, dropout=dropout, linear_type=linear_type,
-                  n_groups=n_groups, interleave=interleave, init_mode=init_mode) # start with model_args from command line
+                  n_groups=n_groups, group_size=group_size, guarantee_rank=guarantee_rank,
+                  interleave=interleave, init_mode=init_mode, transformer_bias=transformer_bias) # start with model_args from command line
 if init_from == 'scratch' or os.path.exists(os.path.join(out_dir, 'ckpt.pt')) is False:
     # init a new model from scratch
     print("Initializing a new model from scratch")
