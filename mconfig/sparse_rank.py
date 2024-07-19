@@ -3,8 +3,8 @@
 # $ torchrun --standalone --nproc_per_node=8 train.py config/train_gpt2.py
 
 wandb_log = True
-wandb_project = 'GPT2'
-experiment_name='sparse'
+# wandb_project = 'GPT2'
+experiment_name='sparse_rank'
 
 # Linear layer
 linear_type = "sparse"
