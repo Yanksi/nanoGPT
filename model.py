@@ -15,23 +15,20 @@ import torch
 import torch.nn as nn
 from torch.nn import functional as F
 
-from sparselinear import MyLinear, MySparseLinear, MyConnectedSparseLinear, MyBetterConnectedSparseLinear
-
-from SparseLinear.linear import MyLinear, MySparseLinear, MyConnectedSparseLinear
+from sparselinear import MyLinear, MySparseLinear, MyConnectedSparseLinear
 
 def get_linear(config, n_input, n_output, transformer=False):
     if transformer:
         bias = config.transformer_bias
-        init = 'transformer'
     else:
         bias = config.bias
-        init = config.init_mode
     
     if config.linear_type == "dense":
         return MyLinear(
             n_input, n_output,
             need_bias=bias,
-            init_mode=init
+            init_mode=init,
+            attn=transformer
             )
         
     if config.linear_type == "sparse":
@@ -39,6 +36,7 @@ def get_linear(config, n_input, n_output, transformer=False):
             n_input, n_output,
             need_bias=bias,
             init_mode=init,
+            attn=transformer,
             guarantee_rank=config.guarantee_rank
             )
         
@@ -47,17 +45,7 @@ def get_linear(config, n_input, n_output, transformer=False):
             n_input, n_output,
             need_bias=bias,
             init_mode=init,
-            n_groups=config.n_groups,
-            group_size=config.group_size,
-            interleave_out=config.interleave,
-            guarantee_rank=config.guarantee_rank
-            )
-    
-    if config.linear_type == "better_connected_sparse":
-        return MyBetterConnectedSparseLinear(
-            n_input, n_output,
-            need_bias=bias,
-            init_mode=init,
+            attn=transformer,
             n_groups=config.n_groups,
             group_size=config.group_size,
             interleave_out=config.interleave,
