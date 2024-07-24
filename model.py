@@ -22,7 +22,7 @@ def get_linear(config, n_input, n_output, transformer=False):
         bias = config.transformer_bias
     else:
         bias = config.bias
-    
+    init = config.init_mode
     if config.linear_type == "dense":
         return MyLinear(
             n_input, n_output,
@@ -118,10 +118,10 @@ class MLP(nn.Module):
 
     def __init__(self, config):
         super().__init__()
-        self.c_fc    = get_linear(config, config.n_embd, 4 * config.n_embd, bias=config.bias)
+        self.c_fc    = get_linear(config, config.n_embd, 4 * config.n_embd)
         # self.c_fc    = nn.Linear(config.n_embd, 4 * config.n_embd, bias=config.bias)
         self.gelu    = nn.GELU()
-        self.c_proj  = get_linear(config, 4 * config.n_embd, config.n_embd, bias=config.bias)
+        self.c_proj  = get_linear(config, 4 * config.n_embd, config.n_embd)
         # self.c_proj  = nn.Linear(4 * config.n_embd, config.n_embd, bias=config.bias)
         self.dropout = nn.Dropout(config.dropout)
 
@@ -161,7 +161,7 @@ class GPTConfig:
     group_size: int = 16 # size of each group for connected sparse linear
     guarantee_rank: bool = True # guarantee sparse linear blocks are full rank
     interleave: bool = True # interleave sparse linear layers for better performance
-    init_mode: str = 'fan_out' # or 'fan_in' or 'fan_out' or 'transformer'
+    init_mode: str = 'fan_out' # or 'fan_in' or 'fan_out'
     transformer_bias: bool = False
     
 

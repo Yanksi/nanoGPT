@@ -63,7 +63,7 @@ transformer_bias = False # use bias in the transformer layers
 
 # adamw optimizer
 learning_rate = 5e-5 # max learning rate
-max_iters = 30000 # total number of training iterations
+max_iters = 15000 # total number of training iterations
 weight_decay = 1e-1
 beta1 = 0.9
 beta2 = 0.999
