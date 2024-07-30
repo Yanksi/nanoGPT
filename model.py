@@ -15,6 +15,8 @@ import torch
 import torch.nn as nn
 from torch.nn import functional as F
 
+from functools import reduce
+
 from sparselinear import MyLinear, MySparseLinear, MyConnectedSparseLinear
 
 def get_linear(config, n_input, n_output, transformer=False):
@@ -312,22 +314,62 @@ class GPT(nn.Module):
         return model
 
     def configure_optimizers(self, weight_decay, learning_rate, betas, device_type):
-        # start with all of the candidate parameters
-        param_dict = {pn: p for pn, p in self.named_parameters()}
-        # filter out those that do not require grad
-        param_dict = {pn: p for pn, p in param_dict.items() if p.requires_grad}
-        # create optim groups. Any parameters that is 2D will be weight decayed, otherwise no.
-        # i.e. all weight tensors in matmuls + embeddings decay, all biases and layernorms don't.
-        decay_params = [p for n, p in param_dict.items() if p.dim() >= 2]
-        nodecay_params = [p for n, p in param_dict.items() if p.dim() < 2]
-        optim_groups = [
-            {'params': decay_params, 'weight_decay': weight_decay},
-            {'params': nodecay_params, 'weight_decay': 0.0}
-        ]
-        num_decay_params = sum(p.numel() for p in decay_params)
-        num_nodecay_params = sum(p.numel() for p in nodecay_params)
-        print(f"num decayed parameter tensors: {len(decay_params)}, with {num_decay_params:,} parameters")
-        print(f"num non-decayed parameter tensors: {len(nodecay_params)}, with {num_nodecay_params:,} parameters")
+        if self.config.init_mode == "muP":
+            # get the MyLinear modules and its weights
+            mylinears = [m for m in self.modules() if isinstance(m, MyLinear)]
+            linear_params = set(p for m in mylinears for p in m.parameters() if p.requires_grad)
+            
+            # seperate the reconnection parameters from weights and biases
+            linear_reconnection_params = set(p for p in linear_params if p.dim() == 4)
+            linear_weights = set(p for p in linear_params if p not in linear_reconnection_params)
+            
+            # get all parameters in the model
+            all_params = {pn: p for pn, p in self.named_parameters() if p.requires_grad}
+            
+            non_linear_params = set(p for _, p in all_params.items() if p not in linear_params)
+            
+            linear_lr_scales = [l.get_param_lr_scale() for l in mylinears]
+            linear_lr_scales = reduce(lambda x, y: x | y, linear_lr_scales)
+            
+            # findout the maximum lr scale for non-reconnection parameters
+            max_lr_scale = max(linear_lr_scales[p] for p in linear_weights)
+            all_lr_scales = {p: lrs / max_lr_scale for p, lrs in linear_lr_scales.items()}
+            all_lr_scales.update({p: 1.0 for p in non_linear_params})
+            
+            optim_lr_groups_decay = {}
+            optim_lr_groups_nodecay = {}
+            for p, lrs in all_lr_scales.items():
+                if p.dim() >= 2:
+                    optim_lr_groups_decay.get(lrs, []).append(p)
+                else:
+                    optim_lr_groups_nodecay.get(lrs, []).append(p)
+            optim_groups_decay = [
+                {'params': ps, 'weight_decay': weight_decay, 'lr_scale': lrs}
+                for lrs, ps in optim_lr_groups_decay.items()
+            ]
+            optim_groups_nodecay = [
+                {'params': ps, 'weight_decay': 0.0, 'lr_scale': lrs}
+                for lrs, ps in optim_lr_groups_nodecay.items()
+            ]
+            optim_groups = optim_groups_decay + optim_groups_nodecay
+        else:
+            # start with all of the candidate parameters
+            param_dict = {pn: p for pn, p in self.named_parameters()}
+            # filter out those that do not require grad
+            param_dict = {pn: p for pn, p in param_dict.items() if p.requires_grad}
+            # create optim groups. Any parameters that is 2D will be weight decayed, otherwise no.
+            # i.e. all weight tensors in matmuls + embeddings decay, all biases and layernorms don't.
+            decay_params = [p for n, p in param_dict.items() if p.dim() >= 2]
+            nodecay_params = [p for n, p in param_dict.items() if p.dim() < 2]
+            optim_groups = [
+                {'params': decay_params, 'weight_decay': weight_decay},
+                {'params': nodecay_params, 'weight_decay': 0.0}
+            ]
+            num_decay_params = sum(p.numel() for p in decay_params)
+            num_nodecay_params = sum(p.numel() for p in nodecay_params)
+            print(f"num decayed parameter tensors: {len(decay_params)}, with {num_decay_params:,} parameters")
+            print(f"num non-decayed parameter tensors: {len(nodecay_params)}, with {num_nodecay_params:,} parameters")
+        
         # Create AdamW optimizer and use the fused version if it is available
         fused_available = 'fused' in inspect.signature(torch.optim.AdamW).parameters
         use_fused = fused_available and device_type == 'cuda'
