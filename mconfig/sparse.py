@@ -4,7 +4,7 @@
 
 wandb_log = True
 # wandb_project = 'GPT2'
-experiment_name='sparse'
+experiment_name='sparse_corrected'
 
 # Linear layer
 linear_type = "sparse"

@@ -13,3 +13,5 @@ trap 'echo "SIGTERM received"; scontrol requeue ${SLURM_JOB_ID}; exit 15' 15
 # torchrun --standalone --nproc_per_node=8 ~/sparselinear/nanoGPT/train.py config/train_gpt2.py
 # python ~/sparselinear/nanoGPT/train.py
 torchrun --standalone --nproc_per_node=4 ~/sparselinear/nanoGPT/train.py $1
+# python ~/sparselinear/nanoGPT/train.py $1
+pop_queue

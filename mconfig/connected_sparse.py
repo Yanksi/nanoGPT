@@ -7,6 +7,6 @@ wandb_log = True
 experiment_name='connected_sparse'
 
 # Linear layer
-linear_type = "better_connected_sparse"
+linear_type = "connected_sparse"
 guarantee_rank = False
 interleave = False
