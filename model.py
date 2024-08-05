@@ -315,43 +315,54 @@ class GPT(nn.Module):
 
     def configure_optimizers(self, weight_decay, learning_rate, betas, device_type):
         if self.config.init_mode == "muP":
+            print("using muP initialization, will use different learning rates for different layers")
             # get the MyLinear modules and its weights
-            mylinears = [m for m in self.modules() if isinstance(m, MyLinear)]
-            linear_params = set(p for m in mylinears for p in m.parameters() if p.requires_grad)
+            named_mylinears = [(n, m) for n, m in self.named_modules() if isinstance(m, MyLinear)]
+            named_linear_params = set((f"{nl}.{n}", p) for (nl, m) in named_mylinears for n, p in m.named_parameters() if p.requires_grad)
+            linear_params = set(p for n, p in named_linear_params)
+            # linear_params = set(p for m in mylinears for p in m.parameters() if p.requires_grad)
             
             # seperate the reconnection parameters from weights and biases
             linear_reconnection_params = set(p for p in linear_params if p.dim() == 4)
-            linear_weights = set(p for p in linear_params if p not in linear_reconnection_params)
+            named_linear_weights = set((n, p) for (n, p) in named_linear_params if p not in linear_reconnection_params)
+            linear_weights = set(p for (n, p) in named_linear_weights)
             
             # get all parameters in the model
             all_params = {pn: p for pn, p in self.named_parameters() if p.requires_grad}
+            all_params_rev = {p: pn for pn, p in all_params.items()}
             
-            non_linear_params = set(p for _, p in all_params.items() if p not in linear_params)
+            non_linear_params = set((n, p) for n, p in all_params.items() if p not in linear_params)
             
-            linear_lr_scales = [l.get_param_lr_scale() for l in mylinears]
+            linear_lr_scales = [l.get_param_lr_scale() for _, l in named_mylinears]
             linear_lr_scales = reduce(lambda x, y: x | y, linear_lr_scales)
-            
+                        
             # findout the maximum lr scale for non-reconnection parameters
             max_lr_scale = max(linear_lr_scales[p] for p in linear_weights)
             all_lr_scales = {p: lrs / max_lr_scale for p, lrs in linear_lr_scales.items()}
-            all_lr_scales.update({p: 1.0 for p in non_linear_params})
+            
+            all_lr_scales.update({p: 1.0 for (n, p) in non_linear_params})
             
             optim_lr_groups_decay = {}
             optim_lr_groups_nodecay = {}
             for p, lrs in all_lr_scales.items():
                 if p.dim() >= 2:
-                    optim_lr_groups_decay.get(lrs, []).append(p)
+                    optim_lr_groups_decay.setdefault(lrs, []).append(p)
                 else:
-                    optim_lr_groups_nodecay.get(lrs, []).append(p)
-            optim_groups_decay = [
+                    optim_lr_groups_nodecay.setdefault(lrs, []).append(p)
+            _optim_groups_decay = [
                 {'params': ps, 'weight_decay': weight_decay, 'lr_scale': lrs}
                 for lrs, ps in optim_lr_groups_decay.items()
             ]
-            optim_groups_nodecay = [
+            _optim_groups_nodecay = [
                 {'params': ps, 'weight_decay': 0.0, 'lr_scale': lrs}
                 for lrs, ps in optim_lr_groups_nodecay.items()
             ]
-            optim_groups = optim_groups_decay + optim_groups_nodecay
+            optim_groups = _optim_groups_decay + _optim_groups_nodecay
+            for group in optim_groups:
+                param_list = group['params']
+                print(f"weight_decay: {group['weight_decay']}, lr_scale: {group['lr_scale']}, num_params: {len(param_list)}")
+                for p in param_list:
+                    print(f"  {all_params_rev[p]}: {p.numel()}")
         else:
             # start with all of the candidate parameters
             param_dict = {pn: p for pn, p in self.named_parameters()}
