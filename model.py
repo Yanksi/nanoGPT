@@ -313,9 +313,10 @@ class GPT(nn.Module):
 
         return model
 
-    def configure_optimizers(self, weight_decay, learning_rate, betas, device_type):
+    def configure_optimizers(self, weight_decay, learning_rate, betas, device_type, master_process=False):
         if self.config.init_mode == "muP":
-            print("using muP initialization, will use different learning rates for different layers")
+            if master_process:
+                print("using muP initialization, will use different learning rates for different layers")
             # get the MyLinear modules and its weights
             named_mylinears = [(n, m) for n, m in self.named_modules() if isinstance(m, MyLinear)]
             named_linear_params = set((f"{nl}.{n}", p) for (nl, m) in named_mylinears for n, p in m.named_parameters() if p.requires_grad)
@@ -358,11 +359,12 @@ class GPT(nn.Module):
                 for lrs, ps in optim_lr_groups_nodecay.items()
             ]
             optim_groups = _optim_groups_decay + _optim_groups_nodecay
-            for group in optim_groups:
-                param_list = group['params']
-                print(f"weight_decay: {group['weight_decay']}, lr_scale: {group['lr_scale']}, num_params: {len(param_list)}")
-                for p in param_list:
-                    print(f"  {all_params_rev[p]}: {p.numel()}")
+            if master_process:
+                for group in optim_groups:
+                    param_list = group['params']
+                    print(f"weight_decay: {group['weight_decay']}, lr_scale: {group['lr_scale']}, num_params: {len(param_list)}")
+                    for p in param_list:
+                        print(f"  {all_params_rev[p]}: {p.numel()}")
         else:
             # start with all of the candidate parameters
             param_dict = {pn: p for pn, p in self.named_parameters()}
@@ -378,16 +380,17 @@ class GPT(nn.Module):
             ]
             num_decay_params = sum(p.numel() for p in decay_params)
             num_nodecay_params = sum(p.numel() for p in nodecay_params)
-            print(f"num decayed parameter tensors: {len(decay_params)}, with {num_decay_params:,} parameters")
-            print(f"num non-decayed parameter tensors: {len(nodecay_params)}, with {num_nodecay_params:,} parameters")
+            if master_process:
+                print(f"num decayed parameter tensors: {len(decay_params)}, with {num_decay_params:,} parameters")
+                print(f"num non-decayed parameter tensors: {len(nodecay_params)}, with {num_nodecay_params:,} parameters")
         
         # Create AdamW optimizer and use the fused version if it is available
         fused_available = 'fused' in inspect.signature(torch.optim.AdamW).parameters
         use_fused = fused_available and device_type == 'cuda'
         extra_args = dict(fused=True) if use_fused else dict()
         optimizer = torch.optim.AdamW(optim_groups, lr=learning_rate, betas=betas, **extra_args)
-        print(f"using fused AdamW: {use_fused}")
-
+        if master_process:
+            print(f"using fused AdamW: {use_fused}")
         return optimizer
 
     def estimate_mfu(self, fwdbwd_per_iter, dt):

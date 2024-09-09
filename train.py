@@ -118,6 +118,7 @@ print(f"tokens per iteration will be: {tokens_per_iter:,}")
 if master_process:
     os.makedirs(out_dir, exist_ok=True)
 torch.manual_seed(1337 + seed_offset)
+np.random.seed(1337 + seed_offset)
 torch.backends.cuda.matmul.allow_tf32 = True # allow tf32 on matmul
 torch.backends.cudnn.allow_tf32 = True # allow tf32 on cudnn
 device_type = 'cuda' if 'cuda' in device else 'cpu' # for later use in torch.autocast
@@ -214,7 +215,7 @@ model.to(device)
 scaler = torch.cuda.amp.GradScaler(enabled=(dtype == 'float16'))
 
 # optimizer
-optimizer = model.configure_optimizers(weight_decay, learning_rate, (beta1, beta2), device_type)
+optimizer = model.configure_optimizers(weight_decay, learning_rate, (beta1, beta2), device_type, master_process)
 if init_from == 'resume' and os.path.exists(os.path.join(out_dir, 'ckpt.pt')) is True:
     optimizer.load_state_dict(checkpoint['optimizer'])
 checkpoint = None # free up memory
@@ -326,6 +327,58 @@ while True:
         scaler.unscale_(optimizer)
         torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
     # step the optimizer and scaler if training in fp16
+    # debugging code: for verifying the dtype of the gradients and states
+    # if master_process:
+    #     all_params = {p:n for (n, p) in model.named_parameters()}
+    #     param_groups = optimizer.param_groups
+    #     sanity_check = True
+    #     for gi, g in enumerate(param_groups):
+    #         params = g['params']
+    #         for p in params:
+    #             if p.requires_grad is False:
+    #                 print(f"param {n} has requires_grad=False")
+    #                 sanity_check = False
+    #             if p.grad is None:
+    #                 print(f"param {n} has None gradient")
+    #                 sanity_check = False
+    #             n = all_params[p]
+    #             optimizer_stuffs = optimizer.state[p] | {"grad": p.grad}
+    #             del optimizer_stuffs["step"]
+                
+    #             stuff_dtypes = {k: v.dtype for k, v in optimizer_stuffs.items()}
+    #             stuff_devices = {k: v.device for k, v in optimizer_stuffs.items()}
+    #             stuff_strides = {k: v.stride() for k, v in optimizer_stuffs.items()}
+    #             stuff_sizes   = {k: v.size() for k, v in optimizer_stuffs.items()}
+                
+    #             if any([it != p.dtype for it in stuff_dtypes.values()]):
+    #                 print(f"param {n} has dtype mismatch, expected {p.dtype}")
+    #                 print(f"got: {stuff_dtypes}")
+    #                 sanity_check = False
+                    
+    #             if any([it != p.device for it in stuff_devices.values()]):
+    #                 print(f"param {n} has device mismatch, expected {p.device}")
+    #                 print(f"got: {stuff_devices}")
+    #                 sanity_check = False
+                    
+    #             # if any(stuff_layout_mismatch.values()):
+    #             #     print(f"param {n} has layout mismatch, expected {p.layout}")
+    #             #     print(stuff_layout_mismatch)
+    #             #     sanity_check = False
+                    
+    #             if any([it != p.stride() for it in stuff_strides.values()]):
+    #                 print(f"param {n} has stride mismatch, expected {p.stride()}")
+    #                 print(f"got: {stuff_strides}")
+    #                 sanity_check = False
+                
+    #             if any([it != p.size() for it in stuff_sizes.values()]):
+    #                 print(f"param {n} has size mismatch, expected {p.size()}")
+    #                 print(f"got: {stuff_sizes}")
+    #                 sanity_check = False
+                
+    #     if sanity_check:
+    #         print("sanity check passed")
+    # torch.distributed.barrier() # wait for all processes to catch up       
+    
     scaler.step(optimizer)
     scaler.update()
     # flush the gradients as soon as we can, no need for this memory anymore
