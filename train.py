@@ -56,8 +56,10 @@ bias = True # do we use bias inside LayerNorm and Linear layers?
 linear_type = 'dense' # 'dense' or 'sparse' or 'connected_sparse'
 n_groups = 1 # number of groups for connected sparse linear
 group_size = 16 # size of each group for connected sparse linear
+block_size = 4
 guarantee_rank = True # guarantee rank for connected sparse linear
 interleave = True # interleave sparse linear layers for better performance
+relu_neg = 0.01 # leaky relu negative slope for connected sparse linear
 init_mode = 'fan_out' # 'fan_in' or 'fan_out' for linear layers
 transformer_bias = False # use bias in the transformer layers
 

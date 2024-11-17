@@ -17,7 +17,7 @@ from torch.nn import functional as F
 
 from functools import reduce
 
-from sparselinear import MyLinear, MySparseLinear, MyConnectedSparseLinear
+from sparselinear import MyLinear, MySparseLinear, MyConnectedSparseLinear, MyConnectedSparseLinearActivated
 
 def get_linear(config, n_input, n_output, transformer=False):
     if transformer:
@@ -50,8 +50,23 @@ def get_linear(config, n_input, n_output, transformer=False):
             attn=transformer,
             n_groups=config.n_groups,
             group_size=config.group_size,
+            block_size=config.block_size,
             interleave_out=config.interleave,
             guarantee_rank=config.guarantee_rank
+            )
+    
+    if config.linear_type == "connected_sparse_activated":
+        return MyConnectedSparseLinearActivated(
+            n_input, n_output,
+            need_bias=bias,
+            init_mode=init,
+            attn=transformer,
+            n_groups=config.n_groups,
+            group_size=config.group_size,
+            block_size=config.block_size,
+            interleave_out=config.interleave,
+            guarantee_rank=config.guarantee_rank,
+            relu_neg=config.relu_neg
             )
 
 class LayerNorm(nn.Module):
