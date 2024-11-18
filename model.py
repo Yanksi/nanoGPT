@@ -176,8 +176,10 @@ class GPTConfig:
     linear_type: str = 'dense' # or 'sparse' or 'connected_sparse'
     n_groups: int = 1 # number of groups for connected sparse linear
     group_size: int = 16 # size of each group for connected sparse linear
+    block_size: int = 4 # block size for connected sparse linear
     guarantee_rank: bool = True # guarantee sparse linear blocks are full rank
     interleave: bool = True # interleave sparse linear layers for better performance
+    relu_neg: float = 0.01 # negative slope for leaky relu
     init_mode: str = 'fan_out' # or 'fan_in' or 'fan_out'
     transformer_bias: bool = False
     

@@ -4,7 +4,7 @@
 
 wandb_log = True
 # wandb_project = 'GPT2'
-experiment_name='connected_sparse_rank_interleave_muP_base'
+experiment_name='connected_sparse_rank_interleave_muP_base_2'
 
 # Linear layer
 linear_type = "connected_sparse"

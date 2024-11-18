@@ -4,11 +4,11 @@
 
 wandb_log = True
 # wandb_project = 'GPT2'
-experiment_name='connected_sparse_rank_interleave_muP_16_b4'
+experiment_name='connected_sparse_rank_interleave_muP_32'
 
 # Linear layer
 linear_type = "connected_sparse"
 guarantee_rank = True
 interleave = True
 init_mode = "muP"
-# max_iters = 10
+group_size = 32
