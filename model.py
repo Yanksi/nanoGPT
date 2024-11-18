@@ -50,7 +50,7 @@ def get_linear(config, n_input, n_output, transformer=False):
             attn=transformer,
             n_groups=config.n_groups,
             group_size=config.group_size,
-            block_size=config.block_size,
+            block_size=config.reconnect_block_size,
             interleave_out=config.interleave,
             guarantee_rank=config.guarantee_rank
             )
@@ -63,7 +63,7 @@ def get_linear(config, n_input, n_output, transformer=False):
             attn=transformer,
             n_groups=config.n_groups,
             group_size=config.group_size,
-            block_size=config.block_size,
+            block_size=config.reconnect_block_size,
             interleave_out=config.interleave,
             guarantee_rank=config.guarantee_rank,
             relu_neg=config.relu_neg
@@ -176,7 +176,7 @@ class GPTConfig:
     linear_type: str = 'dense' # or 'sparse' or 'connected_sparse'
     n_groups: int = 1 # number of groups for connected sparse linear
     group_size: int = 16 # size of each group for connected sparse linear
-    block_size: int = 4 # block size for connected sparse linear
+    reconnect_block_size: int = 4 # block size for connected sparse linear
     guarantee_rank: bool = True # guarantee sparse linear blocks are full rank
     interleave: bool = True # interleave sparse linear layers for better performance
     relu_neg: float = 0.01 # negative slope for leaky relu
