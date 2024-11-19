@@ -41,7 +41,7 @@ always_save_checkpoint = True # if True, always save a checkpoint after each eva
 init_from = 'resume' # 'scratch' or 'resume' or 'gpt2*'
 # wandb logging
 wandb_log = True # disabled by default
-wandb_project = 'GPT2_3'
+wandb_project = 'GPT2_2'
 # data
 dataset = 'openwebtext'
 gradient_accumulation_steps = 5 * 8 # used to simulate larger batch sizes
@@ -163,8 +163,9 @@ if os.path.exists(meta_path):
 # model init
 model_args = dict(n_layer=n_layer, n_head=n_head, n_embd=n_embd, block_size=block_size,
                   bias=bias, vocab_size=None, dropout=dropout, linear_type=linear_type,
-                  n_groups=n_groups, group_size=group_size, guarantee_rank=guarantee_rank,
-                  interleave=interleave, init_mode=init_mode, transformer_bias=transformer_bias) # start with model_args from command line
+                  n_groups=n_groups, group_size=group_size, reconnect_block_size=reconnect_block_size,
+                  guarantee_rank=guarantee_rank, interleave=interleave, relu_neg=relu_neg,
+                  init_mode=init_mode, transformer_bias=transformer_bias) # start with model_args from command line
 if init_from == 'scratch' or os.path.exists(os.path.join(out_dir, 'ckpt.pt')) is False:
     # init a new model from scratch
     print("Initializing a new model from scratch")
@@ -174,7 +175,8 @@ if init_from == 'scratch' or os.path.exists(os.path.join(out_dir, 'ckpt.pt')) is
     model_args['vocab_size'] = meta_vocab_size if meta_vocab_size is not None else 50304
     gptconf = GPTConfig(**model_args)
     model = GPT(gptconf)
-    runid = "%x" % (hash(frozenset(model_args.items())) ^ hash(wandb_run_name))
+    runid = "%x" % (hash(frozenset(model_args.items())) ^ hash(wandb_run_name) ^ hash(time.time()))
+    init_from = 'scratch'
 elif init_from == 'resume':
     print(f"Resuming training from {out_dir}")
     # resume training from a checkpoint.
@@ -330,7 +332,7 @@ while True:
         torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
     # step the optimizer and scaler if training in fp16
     # debugging code: for verifying the dtype of the gradients and states
-    # if master_process:
+    # if master_process and init_from == 'resume':
     #     all_params = {p:n for (n, p) in model.named_parameters()}
     #     param_groups = optimizer.param_groups
     #     sanity_check = True
